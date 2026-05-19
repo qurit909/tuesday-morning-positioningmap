@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나노픽(Nanopick) 포지셔닝 맵 및 성장 전략 시뮬레이터</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons (for UI enhancements) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Noto Sans KR & Poppins) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Poppins', sans-serif;
+        }
+        /* 애니메이션 가속도 및 궤적 스타일 */
+        .dot-transition {
+            transition: all 2.5s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 0; }
+            100% { transform: scale(0.95); opacity: 0; }
+        }
+        .pulse-effect::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: inherit;
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-900">
+
+    <!-- 상단 내비게이션 바 -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-chart-line text-slate-950 text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight flex items-center gap-2">
+                        NANOPICK <span class="text-xs font-semibold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">VISION 2026</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">포지셔닝 전환 시뮬레이터 & 성장 전략</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="resetPosition()" class="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 rounded-lg flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i> 초기화 (2사분면)
+                </button>
+                <button onclick="startTransition()" class="px-5 py-2 text-sm font-bold text-slate-950 bg-gradient-to-r from-emerald-400 to-teal-300 hover:from-emerald-300 hover:to-teal-200 transition-all rounded-lg shadow-lg shadow-emerald-500/25 flex items-center gap-2 transform active:scale-95">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> 목표 이동 실행 (3사분면)
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 대시보드 컨텐츠 -->
+    <main class="max-w-7xl mx-auto px-4 py-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-grow">
+        
+        <!-- 왼쪽: 포지셔닝 맵 (8열 차지) -->
+        <div class="lg:col-span-7 xl:col-span-8 bg-slate-950/40 border border-slate-800 rounded-3xl p-6 relative overflow-hidden flex flex-col items-center">
+            
+            <!-- 포지셔닝 맵 헤더 -->
+            <div class="w-full flex justify-between items-center mb-6">
+                <div>
+                    <span class="text-xs text-emerald-400 font-semibold tracking-wider uppercase">Strategic Mapping</span>
+                    <h2 class="text-lg font-bold text-slate-200">시장 포지셔닝 실시간 분석</h2>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="inline-block w-3 h-3 rounded-full bg-emerald-500"></span> 나노픽
+                    <span class="inline-block w-3 h-3 rounded-full bg-rose-500 ml-2"></span> 경쟁사/타 대안
+                </div>
+            </div>
+
+            <!-- 맵 영역 (반응형 비율 유지 컨테이너) -->
+            <div class="relative w-full aspect-[4/3] max-w-[700px] border border-slate-800/80 bg-slate-900/40 rounded-2xl overflow-hidden p-4 shadow-inner">
+                
+                <!-- 배경 격자 데코레이션 -->
+                <div class="absolute inset-0 grid grid-cols-6 grid-rows-6 pointer-events-none opacity-20">
+                    <div class="border-b border-r border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div>
+                    <div class="border-b border-slate-700/50"></div>
+                    <!-- 반복 -->
+                    <div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-slate-700/50"></div>
+                    <div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-r border-slate-700/50"></div><div class="border-b border-slate-700/50"></div>
+                    <div class="border-r border-slate-700/50"></div><div class="border-r border-slate-700/50"></div><div class="border-r border-slate-700/50"></div><div class="border-r border-slate-700/50"></div><div class="border-r border-slate-700/50"></div><div></div>
+                </div>
+
+                <!-- 4분면 설명 텍스트 (배경 물인쇄) -->
+                <div class="absolute top-4 left-4 text-[10px] md:text-xs text-slate-500/60 font-medium select-none uppercase">제 2사분면: 높은 진입장벽 소수정예 영역</div>
+                <div class="absolute top-4 right-4 text-[10px] md:text-xs text-slate-500/60 font-medium select-none uppercase">제 1사분면: 프리미엄 수작업 에이전시</div>
+                <div class="absolute bottom-4 left-4 text-[10px] md:text-xs text-slate-500/60 font-medium select-none uppercase">제 3사분면: 디지털 자동화 플랫폼 (골든 오션)</div>
+                <div class="absolute bottom-4 right-4 text-[10px] md:text-xs text-slate-500/60 font-medium select-none uppercase">제 4사분면: 전통 시장 대량 유통</div>
+
+                <!-- X축 (비용): 가로선 -->
+                <div class="absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-700 via-slate-400 to-slate-700 z-10 transform -translate-y-1/2"></div>
+                <!-- Y축 (확장성): 세로선 -->
+                <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-slate-700 via-slate-400 to-slate-700 z-10 transform -translate-x-1/2"></div>
+
+                <!-- 축 라벨 안내 -->
+                <!-- 상: 확장성 (어려움) -->
+                <div class="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700/80 px-3 py-1 rounded-full text-xs md:text-sm font-bold text-rose-400 z-20 shadow-md">
+                    확장성 (어려움) <i class="fa-solid fa-lock text-[10px] ml-1"></i>
+                </div>
+                <!-- 하: 확장성 (쉬움) -->
+                <div class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900 border border-emerald-500/30 px-3 py-1 rounded-full text-xs md:text-sm font-bold text-emerald-400 z-20 shadow-lg shadow-emerald-500/5">
+                    확장성 (쉬움) <i class="fa-solid fa-bolt text-[10px] ml-1"></i>
+                </div>
+                <!-- 좌: 낮은 비용 -->
+                <div class="absolute left-3 top-1/2 -translate-y-1/2 bg-slate-900 border border-emerald-500/30 px-2.5 py-1 rounded-full text-xs md:text-sm font-semibold text-emerald-400 z-20 shadow-md">
+                    <i class="fa-solid fa-tag text-[10px] mr-1"></i> 낮은 비용
+                </div>
+                <!-- 우: 높은 비용 -->
+                <div class="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-900 border border-slate-700/80 px-2.5 py-1 rounded-full text-xs md:text-sm font-semibold text-slate-300 z-20 shadow-md">
+                    높은 비용 <i class="fa-solid fa-coins text-[10px] ml-1"></i>
+                </div>
+
+                <!-- 이동 궤적 가이드 가상 점선 -->
+                <svg class="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+                    <path id="trajectory-path" d="M 175,100 Q 140,220 175,340" fill="none" stroke="rgba(16, 185, 129, 0.2)" stroke-width="3" stroke-dasharray="8 6" class="transition-opacity duration-500" />
+                </svg>
+
+                <!-- 노드 1: 나노픽 (주인공 - 가변 위치 적용) -->
+                <div id="nanopick-node" onclick="selectCompany('nanopick')" class="absolute left-[25%] top-[22%] -translate-x-1/2 -translate-y-1/2 z-40 cursor-pointer group dot-transition">
+                    <!-- 유도 펄스 링 효과 -->
+                    <div id="nanopick-pulse" class="w-12 h-12 md:w-16 md:h-16 rounded-full bg-emerald-500/90 shadow-lg shadow-emerald-500/30 flex items-center justify-center border-4 border-slate-900 group-hover:scale-110 transition-transform pulse-effect">
+                        <i class="fa-solid fa-rocket text-slate-950 text-base md:text-xl"></i>
+                    </div>
+                    <!-- 레이블 -->
+                    <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                        <span class="bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded text-[11px] md:text-xs font-black shadow-md whitespace-nowrap tracking-wide border border-emerald-400">
+                            나노픽 (Nanopick)
+                        </span>
+                        <span class="text-[9px] text-emerald-400 font-semibold mt-0.5 whitespace-nowrap opacity-90">우리 기업</span>
+                    </div>
+                </div>
+
+                <!-- 노드 2: 오픈 마켓 (크몽, 숨고) -->
+                <div onclick="selectCompany('openmarket')" class="absolute left-[38%] top-[31%] -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer group">
+                    <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-rose-500/90 hover:bg-rose-400 border-2 border-slate-900 shadow-md flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-store text-slate-950 text-xs md:text-sm"></i>
+                    </div>
+                    <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                        <span class="bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] md:text-xs font-semibold whitespace-nowrap shadow-md group-hover:border-slate-600">
+                            오픈 마켓
+                        </span>
+                        <span class="text-[9px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">예: 크몽, 숨고</span>
+                    </div>
+                </div>
+
+                <!-- 노드 3: 체험단 플랫폼 (레뷰, 디너의여왕) -->
+                <div onclick="selectCompany('experience')" class="absolute left-[34%] top-[60%] -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer group">
+                    <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-rose-500/90 hover:bg-rose-400 border-2 border-slate-900 shadow-md flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-users-viewfinder text-slate-950 text-xs md:text-sm"></i>
+                    </div>
+                    <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                        <span class="bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] md:text-xs font-semibold whitespace-nowrap shadow-md group-hover:border-slate-600">
+                            체험단 플랫폼
+                        </span>
+                        <span class="text-[9px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">예: 레뷰, 리뷰플레이스</span>
+                    </div>
+                </div>
+
+                <!-- 노드 4: 셀프 매칭 솔루션 (픽업, 매칭 툴) -->
+                <div onclick="selectCompany('selfmatching')" class="absolute left-[27%] top-[79%] -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer group">
+                    <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-rose-500/90 hover:bg-rose-400 border-2 border-slate-900 shadow-md flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-screwdriver-wrench text-slate-950 text-xs md:text-sm"></i>
+                    </div>
+                    <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                        <span class="bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] md:text-xs font-semibold whitespace-nowrap shadow-md group-hover:border-slate-600">
+                            셀프 매칭 솔루션
+                        </span>
+                        <span class="text-[9px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">예: 원밀리언스, 픽업(Pikup)</span>
+                    </div>
+                </div>
+
+                <!-- 노드 5: 대형 대행사 (제일기획, 이노션 등) -->
+                <div onclick="selectCompany('agency')" class="absolute left-[67%] top-[64%] -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer group">
+                    <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-rose-500/90 hover:bg-rose-400 border-2 border-slate-900 shadow-md flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-building-user text-slate-950 text-xs md:text-sm"></i>
+                    </div>
+                    <div class="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                        <span class="bg-slate-900 border border-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] md:text-xs font-semibold whitespace-nowrap shadow-md group-hover:border-slate-600">
+                            대형 대행사
+                        </span>
+                        <span class="text-[9px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">예: 제일기획, 대홍기획</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 하단 간편 비주얼 대시보드 컨트롤러 -->
+            <div class="w-full mt-6 bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row gap-4 justify-between items-center text-xs text-slate-400">
+                <div class="flex items-center gap-2">
+                    <span class="bg-indigo-500/10 text-indigo-400 px-2.5 py-1 rounded-md border border-indigo-500/20 font-bold">INFO</span>
+                    <span>포지셔닝 노드를 클릭하시면 세부 비교 분석 정보가 우측에 노출됩니다.</span>
+                </div>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="checkbox" id="show-guide" checked onchange="toggleGuide()" class="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 bg-slate-800">
+                        <span>경로 가이드 표시</span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 오른쪽: 세부 상세 정보 패널 (4열 차지) -->
+        <div class="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
+            
+            <!-- 포지셔닝 전환 시나리오 패널 -->
+            <div class="bg-slate-950/40 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl"></div>
+                
+                <h3 class="text-base font-black text-slate-200 flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-route text-emerald-400"></i> 나노픽 로드맵 미션
+                </h3>
+                
+                <p class="text-sm text-slate-400 leading-relaxed mb-4">
+                    현재 나노픽은 <strong class="text-slate-200">합리적인 비용</strong> 대비 높은 수동 공정 리소스로 인해 <strong class="text-rose-400">비즈니스 확장 난이도가 매우 높습니다(2사분면)</strong>. 
+                </p>
+                
+                <!-- 경로 마일스톤 비주얼 -->
+                <div class="space-y-3 mb-5">
+                    <div class="flex gap-3 relative">
+                        <div class="w-0.5 bg-slate-800 absolute top-5 bottom-0 left-2.5"></div>
+                        <div class="w-5 h-5 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center text-[9px] font-bold text-slate-400 shrink-0 z-10">1</div>
+                        <div>
+                            <h4 class="text-xs font-bold text-slate-300">현재 포지션 (2사분면)</h4>
+                            <p class="text-[11px] text-slate-500">수작업 매칭 리소스 한계, 마진 압박 및 확장 불가</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 relative">
+                        <div class="w-0.5 bg-emerald-500/50 absolute top-5 bottom-0 left-2.5"></div>
+                        <div class="w-5 h-5 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-[9px] font-bold text-emerald-400 shrink-0 z-10">2</div>
+                        <div>
+                            <h4 class="text-xs font-bold text-emerald-400">자동화 엔진 탑재 (도중)</h4>
+                            <p class="text-[11px] text-emerald-500/80">AI 기반 실시간 매칭 알고리즘 및 표준 백오피스 구축</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="w-5 h-5 rounded-full bg-emerald-500 border-2 border-emerald-300 flex items-center justify-center text-[9px] font-bold text-slate-950 shrink-0 z-10">3</div>
+                        <div>
+                            <h4 class="text-xs font-bold text-emerald-300">최종 목적지 (3사분면)</h4>
+                            <p class="text-[11px] text-emerald-400">낮은 비용 구조를 고수하면서, 플랫폼형 자동화로 확장 한계 극복</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                    <p class="text-xs text-emerald-400 leading-relaxed">
+                        <i class="fa-solid fa-quote-left mr-1 opacity-70"></i> <strong>"비용 경쟁력"</strong>이라는 절대 무기를 쥔 채, <strong>"디지털 전환(DX) 프로세스"</strong>를 통해 확장성을 쉬움으로 내리는 순간 압도적 시장 점유율 확보가 가능합니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 인터랙티브 상태별 경쟁자 프로필 카드 -->
+            <div id="company-card" class="bg-slate-950/40 border border-slate-800 rounded-3xl p-6 min-h-[300px] flex flex-col justify-between">
+                <!-- 초기 상태 안내 (기본 나노픽 선택) -->
+                <div id="card-default-content" class="space-y-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md font-bold border border-emerald-500/20 uppercase">Our Project</span>
+                            <h3 id="card-title" class="text-xl font-black text-slate-100 mt-1">나노픽 (Nanopick)</h3>
+                        </div>
+                        <span id="card-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">현 위치: 2사분면</span>
+                    </div>
+
+                    <!-- 포지션 정보 스코어 바 -->
+                    <div class="grid grid-cols-2 gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+                        <div>
+                            <span class="text-[10px] text-slate-500 block">비용 메리트</span>
+                            <span id="score-price" class="text-xs font-bold text-emerald-400">낮음 (매우 우수)</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] text-slate-500 block">확장 용이성</span>
+                            <span id="score-scalability" class="text-xs font-bold text-rose-400">어려움 (현재 한계)</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-400 mb-1">현재 한계점</h4>
+                        <p id="card-limit" class="text-xs text-slate-400 leading-relaxed">
+                            수동 방식의 엄격한 프로세스로 인해 비용 대비 내부 인건비 지출이 큼. 수주가 늘어날수록 팀 피로도가 급격히 올라 확장이 어려운 정체 상태.
+                        </p>
+                    </div>
+
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-400 mb-1">돌파구 & 전략적 Task</h4>
+                        <ul id="card-strategy" class="text-xs text-slate-400 space-y-1.5 list-disc pl-4 leading-relaxed">
+                            <li>업무 프로세스 표준화 및 기획 템플릿화</li>
+                            <li>자동 매칭 알고리즘을 통한 컨설턴트 개입 최소화</li>
+                            <li>SaaS 형태의 셀프 분석 툴 연동</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 푸터 팁 -->
+                <div class="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>분석 모델: 경쟁 포지셔닝 맵</span>
+                    <span>Nanopick Tech Dev</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- 하단 통계 바 -->
+    <footer class="border-t border-slate-800 bg-slate-950 px-6 py-4 mt-8">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+            <p>© 2026 나노픽 포지셔닝 전환 프로젝트. All rights reserved.</p>
+            <div class="flex gap-4">
+                <a href="#" class="hover:underline hover:text-slate-400">개인정보처리방침</a>
+                <a href="#" class="hover:underline hover:text-slate-400">서비스 백서</a>
+                <a href="#" class="hover:underline hover:text-slate-400">성장 로드맵</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 자바스크립트 로직 -->
+    <script>
+        // 각 비즈니스 모델 데이터 사전 정의
+        const companiesData = {
+            nanopick: {
+                title: "나노픽 (Nanopick)",
+                badge: "혁신 중심 (초기)",
+                currentPos: "2사분면 ➔ 3사분면 전환 대상",
+                price: "낮음 (매우 합리적)",
+                scalability: "현재: 어려움 ➔ 미래: 매우 쉬움",
+                limit: "초기 서비스 제공 및 매칭 과정에서 고도의 수동 공수가 동반되어, 도입 비용은 저렴하지만 유입량이 증가할 때 업무 마비 리스크가 큽니다.",
+                strategies: [
+                    "매칭 알고리즘 및 API 연동 자동화",
+                    "단순 데이터 입력/관리의 클라이언트 위임화",
+                    "내부 소요 비용 절감 기술 기반 자동 스케일아웃"
+                ],
+                isMain: true
+            },
+            openmarket: {
+                title: "오픈 마켓 (크몽, 숨고 등)",
+                badge: "수동 아웃소싱 경쟁",
+                currentPos: "2사분면 (중간 부근)",
+                price: "다소 낮음 ~ 보통",
+                scalability: "약간 어려움 (수동 조정 필요)",
+                limit: "크몽, 숨고 같은 인력 중개 플랫폼입니다. 전문가와 의뢰인 간의 조율 과정이 수작업으로 이루어져 품질 편차가 심하고 대형 규격화가 어렵습니다.",
+                strategies: [
+                    "중개 수수료 기반 비즈니스로 개별 퀄리티 직접 통제 불가",
+                    "분쟁 조정 리소스로 인해 백오피스 한계 존재",
+                    "나노픽 대비 서비스 일관성 확보 부족"
+                ],
+                isMain: false
+            },
+            experience: {
+                title: "체험단 플랫폼 (레뷰 등)",
+                badge: "마케팅형 대안 경쟁",
+                currentPos: "3사분면 (상단)",
+                price: "낮음 (박리다매)",
+                scalability: "보통 (인플루언서 수동 검수)",
+                limit: "레뷰(Revu)처럼 시스템화된 저비용 대량 자동 수집 방식이나, 마케팅 영역에 한정되어 있어 정교한 비즈니스 1:1 문제 분석 서비스엔 적합하지 않습니다.",
+                strategies: [
+                    "광고주-블로거 대량 매칭 시스템의 프로세스 강점",
+                    "나노픽이 고지향할 매칭 시스템의 UI 및 자동 모집 프로세스 모델링 대상",
+                    "치열한 제살깎아먹기식 저가 경쟁 상황"
+                ],
+                isMain: false
+            },
+            selfmatching: {
+                title: "셀프 매칭 솔루션 (픽업 등)",
+                badge: "무인 기술 지향형",
+                currentPos: "3사분면 (하단)",
+                price: "매우 낮음 (구독형)",
+                scalability: "매우 쉬움 (순수 소프트웨어)",
+                limit: "픽업(Pikup)이나 원밀리언스 등 사용자가 직접 입력하여 분석하는 솔루션입니다. 비용은 최저 수준이나 전문적 서포트가 없어 이탈율이 높고 완성도가 떨어집니다.",
+                strategies: [
+                    "휴먼 터치가 전혀 없어 사용법 학습 허들이 존재",
+                    "나노픽은 이들의 'SaaS' 요소와 당사의 '전문가 터치'를 결합한 하이브리드 자동화를 추구해야 함",
+                    "높은 서비스 확장율 대비 낮은 고객 유지율(Retention)"
+                ],
+                isMain: false
+            },
+            agency: {
+                title: "대형 대행사 (제일기획 등)",
+                badge: "전통 고비용 에이전시",
+                currentPos: "4사분면",
+                price: "매우 높음",
+                scalability: "보통 (영업망 및 물적 리소스 활용)",
+                limit: "제일기획, 이노션, 대형 종합 기획사 포지션입니다. 하이엔드 퀄리티를 위해 맨파워 중심의 최고 비용 구조를 고수하여 스타트업/소상공인의 접근이 불가합니다.",
+                strategies: [
+                    "대기업 장기 수주 중심의 높은 영업 장벽",
+                    "나노픽의 '저비용 고확장성 자동화 솔루션'이 틈새 시장으로서 이들의 대안으로 침투 가능",
+                    "고정 인건비와 프리미엄 브랜딩 비용으로 가격 하향 불가"
+                ],
+                isMain: false
+            }
+        };
+
+        // 나노픽 노드 상태 관리 변수
+        let isTransitioned = false;
+
+        // 특정 기업 클릭 시 카드 내용 동적 렌더링
+        function selectCompany(key) {
+            const data = companiesData[key];
+            const titleEl = document.getElementById('card-title');
+            const badgeEl = document.getElementById('card-badge');
+            const scorePrice = document.getElementById('score-price');
+            const scoreScalability = document.getElementById('score-scalability');
+            const limitEl = document.getElementById('card-limit');
+            const strategyEl = document.getElementById('card-strategy');
+            const cardEl = document.getElementById('company-card');
+
+            // 타이틀 및 뱃지 적용
+            titleEl.textContent = data.title;
+            badgeEl.textContent = data.currentPos;
+            
+            // 뱃지 색상 분기
+            if (data.isMain) {
+                badgeEl.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-pulse";
+                cardEl.className = "bg-slate-950/40 border-2 border-emerald-500/30 rounded-3xl p-6 min-h-[300px] flex flex-col justify-between shadow-lg shadow-emerald-500/5 transition-all duration-300";
+            } else {
+                badgeEl.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700";
+                cardEl.className = "bg-slate-950/40 border border-slate-800 rounded-3xl p-6 min-h-[300px] flex flex-col justify-between transition-all duration-300";
+            }
+
+            // 점수 및 상태 텍스트 바인딩
+            scorePrice.textContent = data.price;
+            scoreScalability.textContent = data.scalability;
+            
+            // 가독성 색상 부여
+            if (data.price.includes("낮음") || data.price.includes("합리적")) {
+                scorePrice.className = "text-xs font-bold text-emerald-400";
+            } else {
+                scorePrice.className = "text-xs font-bold text-rose-400";
+            }
+
+            if (data.scalability.includes("쉬움")) {
+                scoreScalability.className = "text-xs font-bold text-emerald-400";
+            } else {
+                scoreScalability.className = "text-xs font-bold text-rose-400";
+            }
+
+            limitEl.textContent = data.limit;
+
+            // 전략 리스트 렌더링
+            strategyEl.innerHTML = '';
+            data.strategies.forEach(strategy => {
+                const li = document.createElement('li');
+                li.textContent = strategy;
+                strategyEl.appendChild(li);
+            });
+        }
+
+        // 3사분면으로 이동시키는 애니메이션 함수
+        function startTransition() {
+            const node = document.getElementById('nanopick-node');
+            const pulseRing = document.getElementById('nanopick-pulse');
+            
+            // 나노픽 노드의 좌표 이동 (3사분면으로 이동)
+            node.style.left = "25%";
+            node.style.top = "78%";
+            
+            // 비주얼 효과 강화
+            pulseRing.classList.remove('bg-emerald-500/90');
+            pulseRing.classList.add('bg-teal-400', 'shadow-teal-500/50');
+            
+            isTransitioned = true;
+            
+            // 데이터 정보 업데이트 및 나노픽 선택 효과 활성화
+            companiesData.nanopick.currentPos = "최적 포지션 안착 (3사분면)";
+            companiesData.nanopick.scalability = "매우 쉬움 (디지털 자동화 완성)";
+            companiesData.nanopick.limit = "매칭 플랫폼 DX를 통해 고질적인 수동 휴먼리소스 문제를 완전히 해결했으며, 저비용 구조를 그대로 유지하면서도 무제한 성장이 가능해졌습니다.";
+            
+            selectCompany('nanopick');
+            
+            // 성공 알림 대용 비주얼 임팩트
+            setTimeout(() => {
+                pulseRing.style.transform = "scale(1.2)";
+                setTimeout(() => { pulseRing.style.transform = ""; }, 200);
+            }, 2500);
+        }
+
+        // 초기 원위치(2사분면)로 리셋하는 함수
+        function resetPosition() {
+            const node = document.getElementById('nanopick-node');
+            const pulseRing = document.getElementById('nanopick-pulse');
+            
+            node.style.left = "25%";
+            node.style.top = "22%";
+            
+            pulseRing.classList.add('bg-emerald-500/90');
+            pulseRing.classList.remove('bg-teal-400', 'shadow-teal-500/50');
+            
+            isTransitioned = false;
+
+            // 데이터 정보 롤백
+            companiesData.nanopick.currentPos = "현 위치 (2사분면)";
+            companiesData.nanopick.scalability = "어려움 (현재 리소스 병목)";
+            companiesData.nanopick.limit = "초기 서비스 제공 및 매칭 과정에서 고도의 수동 공수가 동반되어, 도입 비용은 저렴하지만 유입량이 증가할 때 업무 마비 리스크가 큽니다.";
+
+            selectCompany('nanopick');
+        }
+
+        // 가이드 경로 숨기기/보여주기 토글
+        function toggleGuide() {
+            const checkbox = document.getElementById('show-guide');
+            const path = document.getElementById('trajectory-path');
+            
+            if (checkbox.checked) {
+                path.style.opacity = "1";
+            } else {
+                path.style.opacity = "0";
+            }
+        }
+
+        // 페이지 진입 시 기본으로 나노픽 선택
+        window.onload = function() {
+            selectCompany('nanopick');
+            
+            // 최초 진입 시 1.5초 후 자동으로 애니메이션이 시작됨
+            setTimeout(() => {
+                startTransition();
+            }, 1500);
+        }
+    </script>
+</body>
+</html>
